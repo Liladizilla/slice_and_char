@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Orders are CREATED only by the backend (Firebase Admin SDK bypasses
+    // these rules entirely, so the customer-facing site never writes here
+    // directly — it always goes through your server).
+    //
+    // Reading and updating status is allowed only to a signed-in admin
+    // (see admin.html, which signs in with Firebase Auth email/password).
+    // A PIN screen alone would NOT protect this data, since your Firebase
+    // web config is public by design — real protection has to live here.
+    match /orders/{orderId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow create, delete: if false;
+    }
+  }
+}

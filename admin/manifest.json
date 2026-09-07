@@ -1,0 +1,10 @@
+{
+  "name": "Slice & Char Kitchen",
+  "short_name": "Kitchen",
+  "start_url": "./admin.html",
+  "display": "standalone",
+  "background_color": "#2B1710",
+  "theme_color": "#2B1710",
+  "orientation": "portrait",
+  "icons": []
+}

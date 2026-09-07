@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Slice & Char — Kitchen</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2B1710">
+<style>
+  :root{
+    --cream:#F4E7C6; --cream-2:#FBF4E4; --crust:#2B1710; --crust-soft:#4A2B1C;
+    --tomato:#D6472B; --tomato-deep:#B23A22; --cheese:#E7AE3F; --line:rgba(43,23,16,.14);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--cream);color:var(--crust);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    background:var(--crust);color:var(--cream-2);padding:18px 20px;
+    display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:10;
+  }
+  header h1{font-size:18px;margin:0;font-weight:700;}
+  .conn{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.8;}
+  .conn .dot{width:7px;height:7px;border-radius:50%;background:#7CBE6B;}
+  .conn.off .dot{background:#C24A3B;}
+
+  #lockScreen{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;gap:16px;
+  }
+  #lockScreen input{
+    font-size:16px;text-align:center;padding:14px;width:240px;
+    border:2px solid var(--line);border-radius:12px;
+  }
+  #lockScreen button{
+    background:var(--tomato);color:#fff;border:none;border-radius:12px;
+    padding:14px 30px;font-weight:700;font-size:15px;
+  }
+  #lockError{color:var(--tomato-deep);font-size:13px;min-height:16px;}
+
+  main{padding:14px;padding-bottom:60px;display:none;}
+  .tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:14px;padding-bottom:2px;}
+  .tab{
+    flex:none;padding:8px 14px;border-radius:99px;font-size:13px;font-weight:700;
+    background:var(--cream-2);border:1.5px solid var(--line);white-space:nowrap;
+  }
+  .tab.active{background:var(--crust);color:var(--cream-2);border-color:var(--crust);}
+
+  .order-card{
+    background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;
+    border:1px solid var(--line);
+  }
+  .order-card.new{animation:pulseIn .6s ease;}
+  @keyframes pulseIn{ from{box-shadow:0 0 0 6px rgba(214,71,43,.35);} to{box-shadow:0 0 0 0 rgba(214,71,43,0);} }
+  .order-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .order-no{font-weight:800;font-size:16px;}
+  .order-time{font-size:11.5px;color:var(--crust-soft);}
+  .status-pill{
+    font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;text-transform:capitalize;
+  }
+  .status-received{background:#FDE6C8;color:#8A5A1F;}
+  .status-paid{background:#DCEFD9;color:#2F5C2A;}
+  .status-baking{background:#FCE0DA;color:var(--tomato-deep);}
+  .status-ready{background:#D9E9F5;color:#255278;}
+  .status-delivered{background:#E6E6E6;color:#555;}
+  .status-cancelled{background:#f0d3d0;color:#8a2f22;}
+
+  .order-items{font-size:13.5px;margin:8px 0;color:var(--crust-soft);}
+  .order-items div{padding:2px 0;}
+  .order-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+  .order-total{font-weight:800;font-size:15px;}
+  .order-phone{font-size:12.5px;color:var(--crust-soft);}
+  .status-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+  .status-actions button{
+    flex:1;min-width:70px;padding:9px 8px;border-radius:9px;border:1.5px solid var(--line);
+    background:var(--cream-2);font-size:12px;font-weight:700;
+  }
+  .status-actions button.current{background:var(--crust);color:#fff;border-color:var(--crust);}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--crust-soft);}
+  audio{display:none;}
+</style>
+</head>
+<body>
+
+<div id="lockScreen">
+  <h1 style="font-family:serif;">Kitchen access</h1>
+  <p style="color:var(--crust-soft);font-size:14px;text-align:center;max-width:30ch;">Sign in with the admin account to see live orders.</p>
+  <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="username">
+  <input type="password" id="passInput" placeholder="Password" autocomplete="current-password">
+  <button onclick="tryUnlock()">Sign in</button>
+  <div id="lockError"></div>
+</div>
+
+<header style="display:none;" id="header">
+  <h1>Slice & Char — Kitchen</h1>
+  <div class="conn" id="connStatus"><span class="dot"></span><span>Live</span></div>
+</header>
+
+<main id="main">
+  <div class="tabs" id="tabs"></div>
+  <div id="orderList"></div>
+</main>
+
+<audio id="pingSound" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=" preload="auto"></audio>
+
+<!-- Firebase (client SDK — this config is public by design, Firestore rules do the real protection) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+  // TODO: replace with your Firebase project's web config
+  // Firebase Console > Project Settings > General > Your apps > Web app
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getFirestore(fbApp);
+  const auth = getAuth(fbApp);
+
+  let currentFilter = 'active';
+  let orders = [];
+  let knownIds = new Set();
+  let firstLoad = true;
+
+  window.tryUnlock = async function(){
+    const email = document.getElementById('emailInput').value.trim();
+    const pass = document.getElementById('passInput').value;
+    document.getElementById('lockError').textContent = '';
+    try{
+      await signInWithEmailAndPassword(auth, email, pass);
+      // onAuthStateChanged below handles showing the dashboard
+    }catch(e){
+      document.getElementById('lockError').textContent = 'Could not sign in — check email and password';
+    }
+  };
+
+  // Keeps you signed in across app opens on your phone, and re-locks
+  // the screen if you're ever signed out.
+  onAuthStateChanged(auth, (user)=>{
+    if(user){
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('header').style.display = 'flex';
+      document.getElementById('main').style.display = 'block';
+      startListening();
+    }else{
+      document.getElementById('lockScreen').style.display = 'flex';
+      document.getElementById('header').style.display = 'none';
+      document.getElementById('main').style.display = 'none';
+    }
+  });
+
+  const TABS = [
+    {id:'active', label:'Active'},
+    {id:'received', label:'New'},
+    {id:'paid', label:'Paid'},
+    {id:'baking', label:'Baking'},
+    {id:'ready', label:'Ready'},
+    {id:'delivered', label:'Delivered'},
+    {id:'all', label:'All'},
+  ];
+  const tabsEl = document.getElementById('tabs');
+  TABS.forEach(t=>{
+    const b = document.createElement('button');
+    b.className = 'tab' + (t.id==='active' ? ' active':'');
+    b.textContent = t.label;
+    b.onclick = ()=>{
+      currentFilter = t.id;
+      [...tabsEl.children].forEach(c=>c.classList.remove('active'));
+      b.classList.add('active');
+      render();
+    };
+    tabsEl.appendChild(b);
+  });
+
+  function startListening(){
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+    onSnapshot(q, (snap)=>{
+      orders = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if(!firstLoad){
+        orders.forEach(o=>{
+          if(!knownIds.has(o.id)){
+            document.getElementById('pingSound').play().catch(()=>{});
+            if(Notification && Notification.permission === 'granted'){
+              new Notification('New order: ' + o.orderNo, { body: `KSh ${o.total}` });
+            }
+          }
+        });
+      }
+      knownIds = new Set(orders.map(o=>o.id));
+      firstLoad = false;
+      render();
+    }, (err)=>{
+      document.getElementById('connStatus').classList.add('off');
+      console.error(err);
+    });
+
+    if('Notification' in window && Notification.permission === 'default'){
+      Notification.requestPermission();
+    }
+  }
+
+  function render(){
+    const list = document.getElementById('orderList');
+    let filtered = orders;
+    if(currentFilter === 'active'){
+      filtered = orders.filter(o=>!['delivered','cancelled'].includes(o.status));
+    }else if(currentFilter !== 'all'){
+      filtered = orders.filter(o=>o.status === currentFilter);
+    }
+
+    if(filtered.length === 0){
+      list.innerHTML = '<div class="empty">No orders here right now.</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(o=>{
+      const time = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      const itemsHtml = (o.items||[]).map(i=>`<div>${i.name} — ${i.meta}</div>`).join('');
+      const statuses = ['received','paid','baking','ready','delivered'];
+      const btns = statuses.map(s=>`<button class="${o.status===s?'current':''}" onclick="setStatus('${o.id}','${s}')">${s}</button>`).join('');
+      return `
+        <div class="order-card">
+          <div class="order-top">
+            <div>
+              <div class="order-no">${o.orderNo}</div>
+              <div class="order-time">${time}</div>
+            </div>
+            <span class="status-pill status-${o.status}">${o.status}</span>
+          </div>
+          <div class="order-items">${itemsHtml}</div>
+          <div class="order-foot">
+            <span class="order-total">KSh ${o.total}</span>
+            <span class="order-phone">${o.phone}</span>
+          </div>
+          <div class="status-actions">${btns}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.setStatus = async function(orderId, status){
+    try{
+      await updateDoc(doc(db, 'orders', orderId), { status });
+    }catch(e){
+      alert('Could not update — check your connection.');
+    }
+  };
+</script>
+</body>
+</html>
