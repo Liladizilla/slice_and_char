@@ -79,6 +79,7 @@
     background:var(--cream-2);font-size:12px;font-weight:700;
   }
   .status-actions button.current{background:var(--crust);color:#fff;border-color:var(--crust);}
+  .manual-badge{display:inline-block;margin-top:8px;font-size:10px;font-weight:700;padding:4px 7px;border-radius:999px;letter-spacing:.04em;background:#f7e6d8;color:#8d4a25;}
 
   .empty{text-align:center;padding:60px 20px;color:var(--crust-soft);}
   audio{display:none;}
@@ -130,8 +131,33 @@
 
   let currentFilter = 'active';
   let orders = [];
+  let manualOrders = [];
   let knownIds = new Set();
   let firstLoad = true;
+
+  function loadManualOrders(){
+    try{
+      manualOrders = JSON.parse(localStorage.getItem('sliceCharManualOrders') || '[]');
+    }catch(err){
+      manualOrders = [];
+    }
+  }
+
+  function saveManualOrders(){
+    localStorage.setItem('sliceCharManualOrders', JSON.stringify(manualOrders));
+  }
+
+  window.addEventListener('sliceCharManualOrderUpdated', ()=>{
+    loadManualOrders();
+    render();
+  });
+
+  window.addEventListener('storage', (event)=>{
+    if(event.key === 'sliceCharManualOrders'){
+      loadManualOrders();
+      render();
+    }
+  });
 
   window.tryUnlock = async function(){
     const email = document.getElementById('emailInput').value.trim();
@@ -212,11 +238,25 @@
 
   function render(){
     const list = document.getElementById('orderList');
-    let filtered = orders;
+    loadManualOrders();
+    const combined = [
+      ...orders.map(o => ({ ...o, source: 'firestore' })),
+      ...manualOrders.map(o => ({
+        ...o,
+        id: o.orderNo,
+        orderNo: o.orderNo,
+        phone: o.phone || o.customerName || 'Manual receipt',
+        customerName: o.customerName || 'Customer',
+        source: 'manual',
+        manual: true,
+      }))
+    ];
+
+    let filtered = combined;
     if(currentFilter === 'active'){
-      filtered = orders.filter(o=>!['delivered','cancelled'].includes(o.status));
+      filtered = combined.filter(o=>!['delivered','cancelled'].includes(o.status));
     }else if(currentFilter !== 'all'){
-      filtered = orders.filter(o=>o.status === currentFilter);
+      filtered = combined.filter(o=>o.status === currentFilter);
     }
 
     if(filtered.length === 0){
@@ -225,10 +265,11 @@
     }
 
     list.innerHTML = filtered.map(o=>{
-      const time = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+      const time = o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : new Date(o.createdAt || Date.now()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
       const itemsHtml = (o.items||[]).map(i=>`<div>${i.name} — ${i.meta}</div>`).join('');
       const statuses = ['received','paid','baking','ready','delivered'];
       const btns = statuses.map(s=>`<button class="${o.status===s?'current':''}" onclick="setStatus('${o.id}','${s}')">${s}</button>`).join('');
+      const manualBadge = o.manual ? '<div class="manual-badge">MANUAL RECEIPT</div>' : '';
       return `
         <div class="order-card">
           <div class="order-top">
@@ -243,6 +284,7 @@
             <span class="order-total">KSh ${o.total}</span>
             <span class="order-phone">${o.phone}</span>
           </div>
+          ${manualBadge}
           <div class="status-actions">${btns}</div>
         </div>
       `;
@@ -250,6 +292,14 @@
   }
 
   window.setStatus = async function(orderId, status){
+    const targetOrder = manualOrders.find(o => o.orderNo === orderId);
+    if(targetOrder){
+      targetOrder.status = status;
+      saveManualOrders();
+      render();
+      return;
+    }
+
     try{
       await updateDoc(doc(db, 'orders', orderId), { status });
     }catch(e){

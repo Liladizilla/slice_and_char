@@ -334,6 +334,25 @@
     display:flex;align-items:center;gap:10px;font-size:14.5px;
   }
   @media (min-width:761px){ .fab-cart{display:none;} }
+
+  .manual-order-modal{position:fixed;inset:0;background:rgba(20,13,9,.52);display:flex;align-items:flex-end;justify-content:center;z-index:30;opacity:0;visibility:hidden;transition:.25s ease;}
+  .manual-order-modal.open{opacity:1;visibility:visible;}
+  .manual-order-panel{width:min(100%, 520px);background:#fff;border-radius:22px 22px 0 0;padding:20px 18px 22px;border:1px solid var(--line);box-shadow:0 -14px 40px rgba(0,0,0,.18);transform:translateY(18px);transition:.25s ease;}
+  .manual-order-modal.open .manual-order-panel{transform:translateY(0);}
+  .manual-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .manual-header h3{margin:0;font-size:20px;font-family:serif;}
+  .manual-close{border:none;background:transparent;font-size:26px;line-height:1;color:var(--crust);cursor:pointer;}
+  .manual-subtitle{margin:0 0 12px;color:var(--crust-soft);font-size:13px;}
+  .receipt-summary{background:var(--cream-2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;}
+  .receipt-summary h4{margin:0 0 8px;font-size:14px;}
+  .receipt-summary ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--crust-soft);}
+  .manual-form{display:grid;gap:10px;}
+  .manual-form input, .manual-form textarea, .manual-form select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;background:#fff;}
+  .manual-form textarea{min-height:82px;resize:vertical;}
+  .manual-actions{display:flex;gap:10px;margin-top:6px;}
+  .manual-actions button{flex:1;padding:12px;border:none;border-radius:10px;font-weight:700;cursor:pointer;}
+  .manual-actions .secondary{background:var(--cream-2);color:var(--crust);border:1px solid var(--line);} 
+  .manual-actions .primary{background:var(--tomato);color:white;}
 </style>
 </head>
 <body>
@@ -519,6 +538,33 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div id="manualOrderModal" class="manual-order-modal" aria-hidden="true">
+  <div class="manual-order-panel" role="dialog" aria-modal="true" aria-labelledby="manualOrderTitle">
+    <div class="manual-header">
+      <h3 id="manualOrderTitle">Send a manual receipt</h3>
+      <button class="manual-close" type="button" aria-label="Close form" onclick="closeManualOrderModal()">×</button>
+    </div>
+    <p class="manual-subtitle">The kitchen could not be reached, so please fill in the order details below and submit the receipt for the owner.</p>
+    <div class="receipt-summary">
+      <h4>Order summary</h4>
+      <ul id="manualReceiptList"></ul>
+    </div>
+    <form id="manualOrderForm" class="manual-form">
+      <input id="manualName" name="name" type="text" placeholder="Customer name" required>
+      <input id="manualPhone" name="phone" type="tel" placeholder="Phone number" required>
+      <select id="manualPayMethod" name="payMethod">
+        <option value="mpesa">M-Pesa</option>
+        <option value="card">Card</option>
+      </select>
+      <textarea id="manualNotes" name="notes" placeholder="Delivery instructions or notes"></textarea>
+      <div class="manual-actions">
+        <button type="button" class="secondary" onclick="closeManualOrderModal()">Cancel</button>
+        <button type="submit" class="primary">Submit receipt</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
@@ -815,6 +861,80 @@ function closeDrawer(){
   document.getElementById('drawer').classList.remove('open');
   document.getElementById('overlay').classList.remove('open');
 }
+
+const MANUAL_ORDERS_KEY = 'sliceCharManualOrders';
+
+function getManualOrders(){
+  try{
+    return JSON.parse(localStorage.getItem(MANUAL_ORDERS_KEY) || '[]');
+  }catch(err){
+    return [];
+  }
+}
+
+function saveManualOrder(order){
+  const manualOrders = getManualOrders();
+  manualOrders.unshift(order);
+  localStorage.setItem(MANUAL_ORDERS_KEY, JSON.stringify(manualOrders));
+  window.dispatchEvent(new Event('sliceCharManualOrderUpdated'));
+}
+
+function openManualOrderModal(){
+  const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
+  const phone = document.getElementById('custPhone').value.trim();
+  const total = cart.reduce((a,c)=>a+c.price,0) + zoneFee;
+  const list = document.getElementById('manualReceiptList');
+  const items = cart.map(item => `<li>${item.name} — ${item.meta} — KSh ${item.price}</li>`).join('');
+  list.innerHTML = `${items}<li>Total: KSh ${total}</li><li>Phone: ${phone || 'Not provided'}</li><li>Payment: ${payMethod === 'mpesa' ? 'M-Pesa' : 'Card'}</li>`;
+  document.getElementById('manualPhone').value = phone || '';
+  document.getElementById('manualPayMethod').value = payMethod;
+  document.getElementById('manualOrderModal').classList.add('open');
+  document.getElementById('manualName').focus();
+}
+
+function closeManualOrderModal(){
+  document.getElementById('manualOrderModal').classList.remove('open');
+  document.getElementById('manualOrderForm').reset();
+}
+
+function handleManualOrderSubmit(event){
+  event.preventDefault();
+  const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
+  const phone = document.getElementById('manualPhone').value.trim();
+  const name = document.getElementById('manualName').value.trim();
+  const notes = document.getElementById('manualNotes').value.trim();
+  if(!name || !phone){
+    showToast('Add your name and phone so the kitchen can confirm the receipt');
+    return;
+  }
+  if(cart.length===0){
+    showToast('Add an item before submitting the manual receipt');
+    return;
+  }
+
+  const manualOrder = {
+    orderNo: `MANUAL-${Date.now()}`,
+    status: 'received',
+    createdAt: new Date().toISOString(),
+    total: cart.reduce((a,c)=>a+c.price,0) + zoneFee,
+    zoneFee,
+    phone,
+    customerName: name,
+    payMethod: document.getElementById('manualPayMethod').value,
+    items: cart,
+    notes,
+    source: 'manual-fallback',
+    manual: true,
+  };
+
+  saveManualOrder(manualOrder);
+  cart = [];
+  renderCart();
+  closeDrawer();
+  closeManualOrderModal();
+  showToast('Receipt sent to the owner/admin dashboard');
+}
+
 // Point this at your deployed backend (see /backend in the project).
 // While testing locally with `npm run dev` in /backend, this is correct as-is.
 const BACKEND_URL = 'https://slice-and-char.onrender.com';
@@ -840,7 +960,13 @@ async function placeOrder(){
     const data = await res.json();
 
     if(!res.ok){
-      showToast(data.error || 'Could not place your order. Try again.');
+      const message = data?.error || 'Could not place your order. Try again.';
+      if(!navigator.onLine || res.status >= 500){
+        openManualOrderModal();
+        showToast('Could not reach the kitchen — please submit the receipt manually');
+      }else{
+        showToast(message);
+      }
       return;
     }
 
@@ -858,7 +984,8 @@ async function placeOrder(){
     closeDrawer();
   }catch(err){
     console.error(err);
-    showToast('Could not reach the kitchen — check your connection and try again');
+    openManualOrderModal();
+    showToast('Could not reach the kitchen — please fill in the receipt form');
   }finally{
     placeBtn.disabled = false;
     placeBtn.textContent = 'Place order';
@@ -899,6 +1026,7 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
 }
-</script>
-</body>
-</html>
+
+window.closeManualOrderModal = closeManualOrderModal;
+window.openManualOrderModal = openManualOrderModal;
+document.getElementById('manualOrderForm').addEventListener('submit', handleManualOrderSubmit);
