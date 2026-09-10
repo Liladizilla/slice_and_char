@@ -569,464 +569,494 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
-document.getElementById('year').textContent = new Date().getFullYear();
+function initializeStorefront(){
+  document.getElementById('year').textContent = new Date().getFullYear();
 
-/* Use the supplied high-resolution Margherita wherever the featured pizza appears. */
-const margheritaImage = 'assets/menu/margherita-featured.jpg';
-const featuredPizzaImages = [
-  ['#heroDisc img', 'Margherita pizza with basil'],
-  ['#wheelOuter img', 'Margherita pizza'],
-  ['.build-disc img', 'Margherita pizza base'],
-];
-featuredPizzaImages.forEach(([selector, alt])=>{
-  const image = document.querySelector(selector);
-  image.src = margheritaImage;
-  image.alt = alt;
-});
-
-/* ---------------- data ---------------- */
-const MENU = [
-  {id:'margherita', name:'Margherita', ing:'Tomato sauce, cheese', base:900, image:'assets/menu/margherita.jpg'},
-  {id:'hawaiian', name:'Hawaiian', ing:'Tomato sauce, cheese, chicken, pineapple, sweet corn', base:1200, image:'assets/menu/hawaiian.jpg'},
-  {id:'diavola', name:'Diavola', ing:'Tomato sauce, cheese, spicy salame', base:1400, image:'assets/menu/diavola.jpg'},
-  {id:'house', name:'House Special', ing:'Tomato sauce, cheese, ham, bacon', base:1500, image:'assets/menu/house-special.jpg'},
-  {id:'veg', name:'Vegetariana', ing:'Tomato sauce, cheese, mushroom, courgette, olives', base:1200, image:'assets/menu/vegetariana.jpg'},
-  {id:'baciata', name:'Pizza Baciata', ing:'Sandwiched — half tomato sauce, half cheese, folded together', base:1300, image:'assets/menu/pizza-baciata.jpg'},
-  {id:'focaccia', name:'Focaccia', ing:'Rosemary, olive oil, fork-poked', base:1200, image:'assets/menu/focaccia.jpg'},
-  {id:'funghi', name:'Funghi & Olive', ing:'Tomato sauce, cheese, mushroom, olives', base:1200, image:'assets/menu/funghi-olive.jpg'},
-];
-const SIZES = [
-  {id:'s', label:'Small', mult:0.8},
-  {id:'m', label:'Medium', mult:1},
-  {id:'l', label:'Large', mult:1.3},
-];
-const EXTRAS = [
-  {id:'bacon', label:'Bacon', price:150},
-  {id:'ham', label:'Ham', price:150},
-  {id:'anchovies', label:'Anchovies', price:200},
-];
-const WHEEL_SEGMENTS = [
-  {label:'10% off', type:'discount', value:10},
-  {label:'Free topping', type:'topping', value:1},
-  {label:'Free Focaccia slice', type:'freebie', value:'focaccia'},
-  {label:'Surprise pizza', type:'random', value:1},
-  {label:'20% off', type:'discount', value:20},
-  {label:'Try again', type:'none', value:0},
-  {label:'15% off', type:'discount', value:15},
-  {label:'Free topping', type:'topping', value:1},
-];
-
-let cart = [];
-let payMethod = 'mpesa';
-
-/* ---------------- render menu ---------------- */
-const menuList = document.getElementById('menuList');
-MENU.forEach(item=>{
-  const row = document.createElement('div');
-  row.className = 'menu-row';
-  row.innerHTML = `
-    <img class="menu-image" src="${item.image}" alt="${item.name} pizza" loading="lazy">
-    <div>
-      <h3>${item.name}</h3>
-      <div class="ingredients">${item.ing}</div>
-    </div>
-    <div class="price">from KSh ${item.base}</div>
-    <button class="add-btn" aria-label="Add ${item.name}">+</button>
-    <div class="row-expand" id="expand-${item.id}">
-      <div class="row-expand-inner">
-        <div class="size-row" id="sizes-${item.id}"></div>
-        <div class="toppings-row" id="extras-${item.id}"></div>
-        <div class="row-confirm">
-          <span class="row-total" id="total-${item.id}">KSh ${item.base}</span>
-          <button class="btn btn-primary" style="padding:11px 20px;font-size:14px;" onclick="confirmAdd('${item.id}')">Add to cart</button>
-        </div>
-      </div>
-    </div>
-  `;
-  menuList.appendChild(row);
-
-  const sizesEl = row.querySelector(`#sizes-${item.id}`);
-  SIZES.forEach((s,i)=>{
-    const chip = document.createElement('button');
-    chip.className = 'size-chip' + (i===1?' active':'');
-    chip.textContent = s.label;
-    chip.dataset.size = s.id;
-    chip.onclick = ()=>{
-      sizesEl.querySelectorAll('.size-chip').forEach(c=>c.classList.remove('active'));
-      chip.classList.add('active');
-      calcRow(item.id);
-    };
-    sizesEl.appendChild(chip);
-  });
-
-  const extrasEl = row.querySelector(`#extras-${item.id}`);
-  EXTRAS.forEach(ex=>{
-    const chip = document.createElement('label');
-    chip.className = 'top-chip';
-    chip.innerHTML = `<input type="checkbox" data-price="${ex.price}" onchange="calcRow('${item.id}')"> ${ex.label} +${ex.price}`;
-    extrasEl.appendChild(chip);
-  });
-
-  row.querySelector('.add-btn').onclick = ()=>toggleExpand(item.id);
-});
-
-function toggleExpand(id){
-  const el = document.getElementById(`expand-${id}`);
-  const isOpen = el.dataset.open === 'true';
-  document.querySelectorAll('.row-expand').forEach(e=>{
-    if(e.id !== el.id){ gsap.to(e, {height:0, duration:.3, ease:'power2.inOut'}); e.dataset.open='false'; }
-  });
-  if(isOpen){
-    gsap.to(el, {height:0, duration:.3, ease:'power2.inOut'});
-    el.dataset.open = 'false';
-  }else{
-    el.dataset.open = 'true';
-    gsap.set(el,{height:'auto'});
-    const h = el.offsetHeight;
-    gsap.fromTo(el,{height:0},{height:h,duration:.35,ease:'power2.inOut'});
-  }
-}
-
-function calcRow(id){
-  const item = MENU.find(m=>m.id===id);
-  const sizesEl = document.getElementById(`sizes-${id}`);
-  const activeChip = sizesEl.querySelector('.size-chip.active');
-  const sizeId = activeChip ? activeChip.dataset.size : 'm';
-  const size = SIZES.find(s=>s.id===sizeId);
-  let total = Math.round(item.base * size.mult);
-  document.querySelectorAll(`#extras-${id} input:checked`).forEach(cb=>{
-    total += parseInt(cb.dataset.price);
-  });
-  document.getElementById(`total-${id}`).textContent = `KSh ${total}`;
-}
-
-function confirmAdd(id){
-  const item = MENU.find(m=>m.id===id);
-  const sizesEl = document.getElementById(`sizes-${id}`);
-  const activeChip = sizesEl.querySelector('.size-chip.active');
-  const size = SIZES.find(s=>s.id===(activeChip?activeChip.dataset.size:'m'));
-  const extras = [];
-  document.querySelectorAll(`#extras-${id} input:checked`).forEach(cb=>{
-    extras.push({label:cb.parentElement.textContent.trim(), price:parseInt(cb.dataset.price)});
-  });
-  const total = Math.round(item.base*size.mult) + extras.reduce((a,e)=>a+e.price,0);
-  cart.push({name:item.name, meta:`${size.label}${extras.length? ' · '+extras.map(e=>e.label.split(' +')[0]).join(', '):''}`, price:total});
-  renderCart();
-  showToast(`${item.name} added to cart`);
-  toggleExpand(id);
-}
-
-/* ---------------- builder ---------------- */
-const BUILD_BASE = 700;
-const TOPPINGS = [
-  {id:'cheese', label:'Extra cheese', price:100, color:'#F5D77A', positions:[[20,30],[60,20],[75,55],[35,70],[50,45]], size:22},
-  {id:'ham', label:'Ham', price:150, color:'#E8AFA0', positions:[[30,45],[65,35],[45,65],[70,60]], size:16},
-  {id:'olive', label:'Olives', price:100, color:'#2B2418', positions:[[25,55],[55,25],[68,45],[40,35],[52,68]], size:10},
-  {id:'mushroom', label:'Mushroom', price:100, color:'#C9AD87', positions:[[35,25],[62,60],[28,65],[70,30]], size:15},
-  {id:'corn', label:'Sweet corn', price:80, color:'#F1C22E', positions:[[45,30],[60,50],[30,50],[50,65],[65,25],[38,40]], size:8},
-  {id:'basil', label:'Fresh basil', price:60, color:'#3C5B37', positions:[[50,50],[42,52]], size:14},
-];
-const toggleList = document.getElementById('toggleList');
-const toppingLayer = document.getElementById('toppingLayer');
-let buildState = {};
-
-TOPPINGS.forEach(t=>{
-  buildState[t.id] = false;
-  const item = document.createElement('div');
-  item.className = 'toggle-item';
-  item.innerHTML = `<span class="label">${t.label} <span class="price-tag">+KSh ${t.price}</span></span>
-    <button class="switch" id="sw-${t.id}"><span class="knob"></span></button>`;
-  toggleList.appendChild(item);
-  document.getElementById(`sw-${t.id}`).onclick = ()=>toggleTopping(t.id);
-
-  t.positions.forEach(([x,y],i)=>{
-    const bit = document.createElement('div');
-    bit.className = 'bit';
-    bit.dataset.top = t.id;
-    bit.style.left = x+'%';
-    bit.style.top = y+'%';
-    bit.style.width = t.size+'px';
-    bit.style.height = t.size+'px';
-    bit.style.background = t.color;
-    if(t.id==='basil'){ bit.style.borderRadius='0 60% 0 60%'; }
-    toppingLayer.appendChild(bit);
-  });
-});
-
-function toggleTopping(id){
-  buildState[id] = !buildState[id];
-  const sw = document.getElementById(`sw-${id}`);
-  sw.classList.toggle('on', buildState[id]);
-  const bits = toppingLayer.querySelectorAll(`[data-top="${id}"]`);
-  if(buildState[id]){
-    gsap.to(bits, {opacity:1, scale:1, duration:.5, stagger:.05, ease:'back.out(2.2)'});
-  }else{
-    gsap.to(bits, {opacity:0, scale:.2, duration:.25, stagger:.03, ease:'power1.in'});
-  }
-  updateBuildTotal();
-}
-
-function updateBuildTotal(){
-  let total = BUILD_BASE;
-  TOPPINGS.forEach(t=>{ if(buildState[t.id]) total += t.price; });
-  document.getElementById('buildTotal').textContent = `KSh ${total}`;
-}
-
-function addBuildToCart(){
-  let total = BUILD_BASE;
-  const chosen = [];
-  TOPPINGS.forEach(t=>{ if(buildState[t.id]){ total += t.price; chosen.push(t.label); } });
-  cart.push({name:'Build Your Own', meta: chosen.length? chosen.join(', ') : 'Tomato & cheese base', price:total});
-  renderCart();
-  showToast('Your build was added to cart');
-}
-
-/* ---------------- spin wheel ---------------- */
-const wheelLabels = document.getElementById('wheelLabels');
-const segAngle = 360 / WHEEL_SEGMENTS.length;
-WHEEL_SEGMENTS.forEach((seg,i)=>{
-  const span = document.createElement('span');
-  span.textContent = seg.label;
-  const angle = segAngle*i + segAngle/2 - 90;
-  span.style.transform = `rotate(${angle}deg) translate(38%, -6px)`;
-  wheelLabels.appendChild(span);
-});
-
-let spun = false;
-function spinWheel(){
-  if(spun) return;
-  spun = true;
-  const wheel = document.getElementById('wheelOuter');
-  const winnerIndex = Math.floor(Math.random()*WHEEL_SEGMENTS.length);
-  const targetAngle = 360*5 + (360 - (segAngle*winnerIndex + segAngle/2));
-  gsap.to(wheel, {
-    rotate: targetAngle,
-    duration: 3.2,
-    ease: 'elastic.out(1, 0.55)',
-    onComplete: ()=>{
-      const win = WHEEL_SEGMENTS[winnerIndex];
-      document.getElementById('spinResult').textContent = `You landed on: ${win.label}`;
-      showToast(`🎉 ${win.label} — mention it at checkout`);
+  /* Use the supplied high-resolution Margherita wherever the featured pizza appears. */
+  const margheritaImage = 'assets/menu/margherita-featured.jpg';
+  const featuredPizzaImages = [
+    ['#heroDisc img', 'Margherita pizza with basil'],
+    ['#wheelOuter img', 'Margherita pizza'],
+    ['.build-disc img', 'Margherita pizza base'],
+  ];
+  featuredPizzaImages.forEach(([selector, alt])=>{
+    const image = document.querySelector(selector);
+    if(image){
+      image.src = margheritaImage;
+      image.alt = alt;
     }
   });
-  document.getElementById('spinBtn').textContent = 'Spinning…';
-  document.getElementById('spinBtn').disabled = true;
-}
 
-/* ---------------- cart / drawer ---------------- */
-function renderCart(){
-  const body = document.getElementById('drawerBody');
-  const foot = document.getElementById('drawerFoot');
-  document.getElementById('cartCount').textContent = cart.length;
-  document.getElementById('fabCount').textContent = cart.length;
-  if(cart.length===0){
-    body.innerHTML = '<div class="empty-cart">Your cart is empty. Go grab a slice.</div>';
-    foot.style.display = 'none';
-    return;
-  }
-  foot.style.display = 'block';
-  body.innerHTML = '';
-  cart.forEach((c,i)=>{
-    const row = document.createElement('div');
-    row.className = 'cart-item';
-    row.innerHTML = `
-      <div>
-        <div class="ci-name">${c.name}</div>
-        <div class="ci-meta">${c.meta}</div>
-        <button class="remove-x" onclick="removeItem(${i})">Remove</button>
-      </div>
-      <div class="ci-price">KSh ${c.price}</div>
-    `;
-    body.appendChild(row);
-  });
-  updateTotals();
-}
-function removeItem(i){ cart.splice(i,1); renderCart(); }
-function updateTotals(){
-  const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
-  const subtotal = cart.reduce((a,c)=>a+c.price,0);
-  const total = subtotal + zoneFee;
-  document.getElementById('drawerTotal').textContent = `KSh ${total}`;
-}
-function setPay(method){
-  payMethod = method;
-  document.getElementById('payMpesa').classList.toggle('active', method==='mpesa');
-  document.getElementById('payCard').classList.toggle('active', method==='card');
-}
-function openDrawer(){
-  document.getElementById('drawer').classList.add('open');
-  document.getElementById('overlay').classList.add('open');
-}
-function closeDrawer(){
-  document.getElementById('drawer').classList.remove('open');
-  document.getElementById('overlay').classList.remove('open');
-}
+  /* ---------------- data ---------------- */
+  const MENU = [
+    {id:'margherita', name:'Margherita', ing:'Tomato sauce, cheese', base:900, image:'assets/menu/margherita.jpg'},
+    {id:'hawaiian', name:'Hawaiian', ing:'Tomato sauce, cheese, chicken, pineapple, sweet corn', base:1200, image:'assets/menu/hawaiian.jpg'},
+    {id:'diavola', name:'Diavola', ing:'Tomato sauce, cheese, spicy salame', base:1400, image:'assets/menu/diavola.jpg'},
+    {id:'house', name:'House Special', ing:'Tomato sauce, cheese, ham, bacon', base:1500, image:'assets/menu/house-special.jpg'},
+    {id:'veg', name:'Vegetariana', ing:'Tomato sauce, cheese, mushroom, courgette, olives', base:1200, image:'assets/menu/vegetariana.jpg'},
+    {id:'baciata', name:'Pizza Baciata', ing:'Sandwiched — half tomato sauce, half cheese, folded together', base:1300, image:'assets/menu/pizza-baciata.jpg'},
+    {id:'focaccia', name:'Focaccia', ing:'Rosemary, olive oil, fork-poked', base:1200, image:'assets/menu/focaccia.jpg'},
+    {id:'funghi', name:'Funghi & Olive', ing:'Tomato sauce, cheese, mushroom, olives', base:1200, image:'assets/menu/funghi-olive.jpg'},
+  ];
+  const SIZES = [
+    {id:'s', label:'Small', mult:0.8},
+    {id:'m', label:'Medium', mult:1},
+    {id:'l', label:'Large', mult:1.3},
+  ];
+  const EXTRAS = [
+    {id:'bacon', label:'Bacon', price:150},
+    {id:'ham', label:'Ham', price:150},
+    {id:'anchovies', label:'Anchovies', price:200},
+  ];
+  const WHEEL_SEGMENTS = [
+    {label:'10% off', type:'discount', value:10},
+    {label:'Free topping', type:'topping', value:1},
+    {label:'Free Focaccia slice', type:'freebie', value:'focaccia'},
+    {label:'Surprise pizza', type:'random', value:1},
+    {label:'20% off', type:'discount', value:20},
+    {label:'Try again', type:'none', value:0},
+    {label:'15% off', type:'discount', value:15},
+    {label:'Free topping', type:'topping', value:1},
+  ];
 
-const MANUAL_ORDERS_KEY = 'sliceCharManualOrders';
+  let cart = [];
+  let payMethod = 'mpesa';
 
-function getManualOrders(){
-  try{
-    return JSON.parse(localStorage.getItem(MANUAL_ORDERS_KEY) || '[]');
-  }catch(err){
-    return [];
-  }
-}
+  const menuList = document.getElementById('menuList');
+  if(menuList){
+    MENU.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'menu-row';
+      row.innerHTML = `
+        <img class="menu-image" src="${item.image}" alt="${item.name} pizza" loading="lazy">
+        <div>
+          <h3>${item.name}</h3>
+          <div class="ingredients">${item.ing}</div>
+        </div>
+        <div class="price">from KSh ${item.base}</div>
+        <button class="add-btn" aria-label="Add ${item.name}">+</button>
+        <div class="row-expand" id="expand-${item.id}">
+          <div class="row-expand-inner">
+            <div class="size-row" id="sizes-${item.id}"></div>
+            <div class="toppings-row" id="extras-${item.id}"></div>
+            <div class="row-confirm">
+              <span class="row-total" id="total-${item.id}">KSh ${item.base}</span>
+              <button class="btn btn-primary" style="padding:11px 20px;font-size:14px;" onclick="confirmAdd('${item.id}')">Add to cart</button>
+            </div>
+          </div>
+        </div>
+      `;
+      menuList.appendChild(row);
 
-function saveManualOrder(order){
-  const manualOrders = getManualOrders();
-  manualOrders.unshift(order);
-  localStorage.setItem(MANUAL_ORDERS_KEY, JSON.stringify(manualOrders));
-  window.dispatchEvent(new Event('sliceCharManualOrderUpdated'));
-}
+      const sizesEl = row.querySelector(`#sizes-${item.id}`);
+      SIZES.forEach((s,i)=>{
+        const chip = document.createElement('button');
+        chip.className = 'size-chip' + (i===1?' active':'');
+        chip.textContent = s.label;
+        chip.dataset.size = s.id;
+        chip.onclick = ()=>{
+          sizesEl.querySelectorAll('.size-chip').forEach(c=>c.classList.remove('active'));
+          chip.classList.add('active');
+          calcRow(item.id);
+        };
+        sizesEl.appendChild(chip);
+      });
 
-function openManualOrderModal(){
-  const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
-  const phone = document.getElementById('custPhone').value.trim();
-  const total = cart.reduce((a,c)=>a+c.price,0) + zoneFee;
-  const list = document.getElementById('manualReceiptList');
-  const items = cart.map(item => `<li>${item.name} — ${item.meta} — KSh ${item.price}</li>`).join('');
-  list.innerHTML = `${items}<li>Total: KSh ${total}</li><li>Phone: ${phone || 'Not provided'}</li><li>Payment: ${payMethod === 'mpesa' ? 'M-Pesa' : 'Card'}</li>`;
-  document.getElementById('manualPhone').value = phone || '';
-  document.getElementById('manualPayMethod').value = payMethod;
-  document.getElementById('manualOrderModal').classList.add('open');
-  document.getElementById('manualName').focus();
-}
+      const extrasEl = row.querySelector(`#extras-${item.id}`);
+      EXTRAS.forEach(ex=>{
+        const chip = document.createElement('label');
+        chip.className = 'top-chip';
+        chip.innerHTML = `<input type="checkbox" data-price="${ex.price}" onchange="calcRow('${item.id}')"> ${ex.label} +${ex.price}`;
+        extrasEl.appendChild(chip);
+      });
 
-function closeManualOrderModal(){
-  document.getElementById('manualOrderModal').classList.remove('open');
-  document.getElementById('manualOrderForm').reset();
-}
-
-function handleManualOrderSubmit(event){
-  event.preventDefault();
-  const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
-  const phone = document.getElementById('manualPhone').value.trim();
-  const name = document.getElementById('manualName').value.trim();
-  const notes = document.getElementById('manualNotes').value.trim();
-  if(!name || !phone){
-    showToast('Add your name and phone so the kitchen can confirm the receipt');
-    return;
-  }
-  if(cart.length===0){
-    showToast('Add an item before submitting the manual receipt');
-    return;
-  }
-
-  const manualOrder = {
-    orderNo: `MANUAL-${Date.now()}`,
-    status: 'received',
-    createdAt: new Date().toISOString(),
-    total: cart.reduce((a,c)=>a+c.price,0) + zoneFee,
-    zoneFee,
-    phone,
-    customerName: name,
-    payMethod: document.getElementById('manualPayMethod').value,
-    items: cart,
-    notes,
-    source: 'manual-fallback',
-    manual: true,
-  };
-
-  saveManualOrder(manualOrder);
-  cart = [];
-  renderCart();
-  closeDrawer();
-  closeManualOrderModal();
-  showToast('Receipt sent to the owner/admin dashboard');
-}
-
-// Point this at your deployed backend (see /backend in the project).
-// While testing locally with `npm run dev` in /backend, this is correct as-is.
-const BACKEND_URL = 'https://slice-and-char.onrender.com';
-
-async function placeOrder(){
-  if(cart.length===0) return;
-  const phone = document.getElementById('custPhone').value.trim();
-  if(!phone){ showToast('Add a phone number so we can reach you'); return; }
-
-  const zoneFee = parseInt(document.getElementById('zoneSelect').value || 0);
-  const total = cart.reduce((a,c)=>a+c.price,0) + zoneFee;
-
-  const placeBtn = document.querySelector('.place-order');
-  placeBtn.disabled = true;
-  placeBtn.textContent = 'Placing order…';
-
-  try{
-    const res = await fetch(`${BACKEND_URL}/api/orders`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ items: cart, total, phone, zoneFee, payMethod })
+      row.querySelector('.add-btn').onclick = ()=>toggleExpand(item.id);
     });
-    const data = await res.json();
+  }
 
-    if(!res.ok){
-      const message = data?.error || 'Could not place your order. Try again.';
-      if(!navigator.onLine || res.status >= 500){
-        openManualOrderModal();
-        showToast('Could not reach the kitchen — please submit the receipt manually');
-      }else{
-        showToast(message);
+  function toggleExpand(id){
+    const el = document.getElementById(`expand-${id}`);
+    if(!el) return;
+    const isOpen = el.dataset.open === 'true';
+    document.querySelectorAll('.row-expand').forEach(e=>{
+      if(e.id !== el.id){ gsap.to(e, {height:0, duration:.3, ease:'power2.inOut'}); e.dataset.open='false'; }
+    });
+    if(isOpen){
+      gsap.to(el, {height:0, duration:.3, ease:'power2.inOut'});
+      el.dataset.open = 'false';
+    }else{
+      el.dataset.open = 'true';
+      gsap.set(el,{height:'auto'});
+      const h = el.offsetHeight;
+      gsap.fromTo(el,{height:0},{height:h,duration:.35,ease:'power2.inOut'});
+    }
+  }
+
+  function calcRow(id){
+    const item = MENU.find(m=>m.id===id);
+    const sizesEl = document.getElementById(`sizes-${id}`);
+    if(!item || !sizesEl) return;
+    const activeChip = sizesEl.querySelector('.size-chip.active');
+    const sizeId = activeChip ? activeChip.dataset.size : 'm';
+    const size = SIZES.find(s=>s.id===sizeId);
+    let total = Math.round(item.base * size.mult);
+    document.querySelectorAll(`#extras-${id} input:checked`).forEach(cb=>{
+      total += parseInt(cb.dataset.price);
+    });
+    document.getElementById(`total-${id}`).textContent = `KSh ${total}`;
+  }
+
+  function confirmAdd(id){
+    const item = MENU.find(m=>m.id===id);
+    const sizesEl = document.getElementById(`sizes-${id}`);
+    if(!item || !sizesEl) return;
+    const activeChip = sizesEl.querySelector('.size-chip.active');
+    const size = SIZES.find(s=>s.id===(activeChip?activeChip.dataset.size:'m'));
+    const extras = [];
+    document.querySelectorAll(`#extras-${id} input:checked`).forEach(cb=>{
+      extras.push({label:cb.parentElement.textContent.trim(), price:parseInt(cb.dataset.price)});
+    });
+    const total = Math.round(item.base*size.mult) + extras.reduce((a,e)=>a+e.price,0);
+    cart.push({name:item.name, meta:`${size.label}${extras.length? ' · '+extras.map(e=>e.label.split(' +')[0]).join(', '):''}`, price:total});
+    renderCart();
+    showToast(`${item.name} added to cart`);
+    toggleExpand(id);
+  }
+
+  /* ---------------- builder ---------------- */
+  const BUILD_BASE = 700;
+  const TOPPINGS = [
+    {id:'cheese', label:'Extra cheese', price:100, color:'#F5D77A', positions:[[20,30],[60,20],[75,55],[35,70],[50,45]], size:22},
+    {id:'ham', label:'Ham', price:150, color:'#E8AFA0', positions:[[30,45],[65,35],[45,65],[70,60]], size:16},
+    {id:'olive', label:'Olives', price:100, color:'#2B2418', positions:[[25,55],[55,25],[68,45],[40,35],[52,68]], size:10},
+    {id:'mushroom', label:'Mushroom', price:100, color:'#C9AD87', positions:[[35,25],[62,60],[28,65],[70,30]], size:15},
+    {id:'corn', label:'Sweet corn', price:80, color:'#F1C22E', positions:[[45,30],[60,50],[30,50],[50,65],[65,25],[38,40]], size:8},
+    {id:'basil', label:'Fresh basil', price:60, color:'#3C5B37', positions:[[50,50],[42,52]], size:14},
+  ];
+  const toggleList = document.getElementById('toggleList');
+  const toppingLayer = document.getElementById('toppingLayer');
+  let buildState = {};
+
+  if(toggleList && toppingLayer){
+    TOPPINGS.forEach(t=>{
+      buildState[t.id] = false;
+      const item = document.createElement('div');
+      item.className = 'toggle-item';
+      item.innerHTML = `<span class="label">${t.label} <span class="price-tag">+KSh ${t.price}</span></span>
+        <button class="switch" id="sw-${t.id}"><span class="knob"></span></button>`;
+      toggleList.appendChild(item);
+      document.getElementById(`sw-${t.id}`).onclick = ()=>toggleTopping(t.id);
+
+      t.positions.forEach(([x,y],i)=>{
+        const bit = document.createElement('div');
+        bit.className = 'bit';
+        bit.dataset.top = t.id;
+        bit.style.left = x+'%';
+        bit.style.top = y+'%';
+        bit.style.width = t.size+'px';
+        bit.style.height = t.size+'px';
+        bit.style.background = t.color;
+        if(t.id==='basil'){ bit.style.borderRadius='0 60% 0 60%'; }
+        toppingLayer.appendChild(bit);
+      });
+    });
+  }
+
+  function toggleTopping(id){
+    buildState[id] = !buildState[id];
+    const sw = document.getElementById(`sw-${id}`);
+    if(!sw) return;
+    sw.classList.toggle('on', buildState[id]);
+    const bits = toppingLayer.querySelectorAll(`[data-top="${id}"]`);
+    if(buildState[id]){
+      gsap.to(bits, {opacity:1, scale:1, duration:.5, stagger:.05, ease:'back.out(2.2)'});
+    }else{
+      gsap.to(bits, {opacity:0, scale:.2, duration:.25, stagger:.03, ease:'power1.in'});
+    }
+    updateBuildTotal();
+  }
+
+  function updateBuildTotal(){
+    let total = BUILD_BASE;
+    TOPPINGS.forEach(t=>{ if(buildState[t.id]) total += t.price; });
+    const buildTotal = document.getElementById('buildTotal');
+    if(buildTotal){ buildTotal.textContent = `KSh ${total}`; }
+  }
+
+  function addBuildToCart(){
+    let total = BUILD_BASE;
+    const chosen = [];
+    TOPPINGS.forEach(t=>{ if(buildState[t.id]){ total += t.price; chosen.push(t.label); } });
+    cart.push({name:'Build Your Own', meta: chosen.length? chosen.join(', ') : 'Tomato & cheese base', price:total});
+    renderCart();
+    showToast('Your build was added to cart');
+  }
+
+  /* ---------------- spin wheel ---------------- */
+  const wheelLabels = document.getElementById('wheelLabels');
+  if(wheelLabels){
+    const segAngle = 360 / WHEEL_SEGMENTS.length;
+    WHEEL_SEGMENTS.forEach((seg,i)=>{
+      const span = document.createElement('span');
+      span.textContent = seg.label;
+      const angle = segAngle*i + segAngle/2 - 90;
+      span.style.transform = `rotate(${angle}deg) translate(38%, -6px)`;
+      wheelLabels.appendChild(span);
+    });
+  }
+
+  let spun = false;
+  function spinWheel(){
+    if(spun) return;
+    spun = true;
+    const wheel = document.getElementById('wheelOuter');
+    if(!wheel) return;
+    const winnerIndex = Math.floor(Math.random()*WHEEL_SEGMENTS.length);
+    const targetAngle = 360*5 + (360 - (360 / WHEEL_SEGMENTS.length * winnerIndex + 360 / WHEEL_SEGMENTS.length / 2));
+    gsap.to(wheel, {
+      rotate: targetAngle,
+      duration: 3.2,
+      ease: 'elastic.out(1, 0.55)',
+      onComplete: ()=>{
+        const win = WHEEL_SEGMENTS[winnerIndex];
+        document.getElementById('spinResult').textContent = `You landed on: ${win.label}`;
+        showToast(`🎉 ${win.label} — mention it at checkout`);
       }
+    });
+    document.getElementById('spinBtn').textContent = 'Spinning…';
+    document.getElementById('spinBtn').disabled = true;
+  }
+
+  /* ---------------- cart / drawer ---------------- */
+  function renderCart(){
+    const body = document.getElementById('drawerBody');
+    const foot = document.getElementById('drawerFoot');
+    document.getElementById('cartCount').textContent = cart.length;
+    document.getElementById('fabCount').textContent = cart.length;
+    if(cart.length===0){
+      body.innerHTML = '<div class="empty-cart">Your cart is empty. Go grab a slice.</div>';
+      foot.style.display = 'none';
+      return;
+    }
+    foot.style.display = 'block';
+    body.innerHTML = '';
+    cart.forEach((c,i)=>{
+      const row = document.createElement('div');
+      row.className = 'cart-item';
+      row.innerHTML = `
+        <div>
+          <div class="ci-name">${c.name}</div>
+          <div class="ci-meta">${c.meta}</div>
+          <button class="remove-x" onclick="removeItem(${i})">Remove</button>
+        </div>
+        <div class="ci-price">KSh ${c.price}</div>
+      `;
+      body.appendChild(row);
+    });
+    updateTotals();
+  }
+  function removeItem(i){ cart.splice(i,1); renderCart(); }
+  function updateTotals(){
+    const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
+    const subtotal = cart.reduce((a,c)=>a+c.price,0);
+    const total = subtotal + zoneFee;
+    document.getElementById('drawerTotal').textContent = `KSh ${total}`;
+  }
+  function setPay(method){
+    payMethod = method;
+    document.getElementById('payMpesa').classList.toggle('active', method==='mpesa');
+    document.getElementById('payCard').classList.toggle('active', method==='card');
+  }
+  function openDrawer(){
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeDrawer(){
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+  }
+
+  const MANUAL_ORDERS_KEY = 'sliceCharManualOrders';
+
+  function getManualOrders(){
+    try{
+      return JSON.parse(localStorage.getItem(MANUAL_ORDERS_KEY) || '[]');
+    }catch(err){
+      return [];
+    }
+  }
+
+  function saveManualOrder(order){
+    const manualOrders = getManualOrders();
+    manualOrders.unshift(order);
+    localStorage.setItem(MANUAL_ORDERS_KEY, JSON.stringify(manualOrders));
+    window.dispatchEvent(new Event('sliceCharManualOrderUpdated'));
+  }
+
+  function openManualOrderModal(){
+    const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
+    const phone = document.getElementById('custPhone').value.trim();
+    const total = cart.reduce((a,c)=>a+c.price,0) + zoneFee;
+    const list = document.getElementById('manualReceiptList');
+    const items = cart.map(item => `<li>${item.name} — ${item.meta} — KSh ${item.price}</li>`).join('');
+    list.innerHTML = `${items}<li>Total: KSh ${total}</li><li>Phone: ${phone || 'Not provided'}</li><li>Payment: ${payMethod === 'mpesa' ? 'M-Pesa' : 'Card'}</li>`;
+    document.getElementById('manualPhone').value = phone || '';
+    document.getElementById('manualPayMethod').value = payMethod;
+    document.getElementById('manualOrderModal').classList.add('open');
+    document.getElementById('manualName').focus();
+  }
+
+  function closeManualOrderModal(){
+    document.getElementById('manualOrderModal').classList.remove('open');
+    document.getElementById('manualOrderForm').reset();
+  }
+
+  function handleManualOrderSubmit(event){
+    event.preventDefault();
+    const zoneFee = parseInt(document.getElementById('zoneSelect')?.value || 0);
+    const phone = document.getElementById('manualPhone').value.trim();
+    const name = document.getElementById('manualName').value.trim();
+    const notes = document.getElementById('manualNotes').value.trim();
+    if(!name || !phone){
+      showToast('Add your name and phone so the kitchen can confirm the receipt');
+      return;
+    }
+    if(cart.length===0){
+      showToast('Add an item before submitting the manual receipt');
       return;
     }
 
-    if(payMethod === 'mpesa'){
-      showToast(`Order ${data.orderNo} placed — check your phone for the M-Pesa prompt`);
-    }else if(data.payment?.checkoutUrl){
-      showToast(`Order ${data.orderNo} placed — redirecting to payment`);
-      window.location.href = data.payment.checkoutUrl;
-    }else{
-      showToast(`Order ${data.orderNo} placed`);
-    }
+    const manualOrder = {
+      orderNo: `MANUAL-${Date.now()}`,
+      status: 'received',
+      createdAt: new Date().toISOString(),
+      total: cart.reduce((a,c)=>a+c.price,0) + zoneFee,
+      zoneFee,
+      phone,
+      customerName: name,
+      payMethod: document.getElementById('manualPayMethod').value,
+      items: cart,
+      notes,
+      source: 'manual-fallback',
+      manual: true,
+    };
 
+    saveManualOrder(manualOrder);
     cart = [];
     renderCart();
     closeDrawer();
-  }catch(err){
-    console.error(err);
-    openManualOrderModal();
-    showToast('Could not reach the kitchen — please fill in the receipt form');
-  }finally{
-    placeBtn.disabled = false;
-    placeBtn.textContent = 'Place order';
+    closeManualOrderModal();
+    showToast('Receipt sent to the owner/admin dashboard');
   }
-}
 
-/* ---------------- status pill ---------------- */
-function updateStatus(){
-  const now = new Date();
-  const hr = now.getHours();
-  const open = now.getDay()!==1 && hr>=11 && hr<22; // closed Mondays, 11:00-22:00
-  const pill = document.getElementById('statusPill');
-  const text = document.getElementById('statusText');
-  pill.classList.toggle('closed', !open);
-  text.textContent = open ? 'Open now — baking' : 'Closed — back at 11:00';
-}
-updateStatus();
+  // Point this at your deployed backend (see /backend in the project).
+  // While testing locally with `npm run dev` in /backend, this is correct as-is.
+  const BACKEND_URL = 'https://slice-and-char.onrender.com';
 
-/* ---------------- scroll-linked pizza rotation ---------------- */
-gsap.registerPlugin(ScrollTrigger);
-gsap.to('#heroDisc', {
-  rotate: 220,
-  ease:'none',
-  scrollTrigger:{
-    trigger:'.hero',
-    start:'top top',
-    end:'bottom top',
-    scrub:0.6,
+  async function placeOrder(){
+    if(cart.length===0) return;
+    const phone = document.getElementById('custPhone').value.trim();
+    if(!phone){ showToast('Add a phone number so we can reach you'); return; }
+
+    const zoneFee = parseInt(document.getElementById('zoneSelect').value || 0);
+    const total = cart.reduce((a,c)=>a+c.price,0) + zoneFee;
+
+    const placeBtn = document.querySelector('.place-order');
+    placeBtn.disabled = true;
+    placeBtn.textContent = 'Placing order…';
+
+    try{
+      const res = await fetch(`${BACKEND_URL}/api/orders`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ items: cart, total, phone, zoneFee, payMethod })
+      });
+      const data = await res.json();
+
+      if(!res.ok){
+        const message = data?.error || 'Could not place your order. Try again.';
+        if(!navigator.onLine || res.status >= 500){
+          openManualOrderModal();
+          showToast('Could not reach the kitchen — please submit the receipt manually');
+        }else{
+          showToast(message);
+        }
+        return;
+      }
+
+      if(payMethod === 'mpesa'){
+        showToast(`Order ${data.orderNo} placed — check your phone for the M-Pesa prompt`);
+      }else if(data.payment?.checkoutUrl){
+        showToast(`Order ${data.orderNo} placed — redirecting to payment`);
+        window.location.href = data.payment.checkoutUrl;
+      }else{
+        showToast(`Order ${data.orderNo} placed`);
+      }
+
+      cart = [];
+      renderCart();
+      closeDrawer();
+    }catch(err){
+      console.error(err);
+      openManualOrderModal();
+      showToast('Could not reach the kitchen — please fill in the receipt form');
+    }finally{
+      placeBtn.disabled = false;
+      placeBtn.textContent = 'Place order';
+    }
   }
-});
 
-/* ---------------- toast ---------------- */
-let toastTimer;
-function showToast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+  /* ---------------- status pill ---------------- */
+  function updateStatus(){
+    const now = new Date();
+    const hr = now.getHours();
+    const open = now.getDay()!==1 && hr>=11 && hr<22; // closed Mondays, 11:00-22:00
+    const pill = document.getElementById('statusPill');
+    const text = document.getElementById('statusText');
+    pill.classList.toggle('closed', !open);
+    text.textContent = open ? 'Open now — baking' : 'Closed — back at 11:00';
+  }
+  updateStatus();
+
+  /* ---------------- scroll-linked pizza rotation ---------------- */
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.to('#heroDisc', {
+    rotate: 220,
+    ease:'none',
+    scrollTrigger:{
+      trigger:'.hero',
+      start:'top top',
+      end:'bottom top',
+      scrub:0.6,
+    }
+  });
+
+  /* ---------------- toast ---------------- */
+  let toastTimer;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2800);
+  }
+
+  window.closeManualOrderModal = closeManualOrderModal;
+  window.openManualOrderModal = openManualOrderModal;
+  const manualOrderForm = document.getElementById('manualOrderForm');
+  if(manualOrderForm){ manualOrderForm.addEventListener('submit', handleManualOrderSubmit); }
+  window.placeOrder = placeOrder;
+  window.spinWheel = spinWheel;
+  window.setPay = setPay;
+  window.toggleTopping = toggleTopping;
+  window.confirmAdd = confirmAdd;
+  window.addBuildToCart = addBuildToCart;
+  window.removeItem = removeItem;
 }
 
-window.closeManualOrderModal = closeManualOrderModal;
-window.openManualOrderModal = openManualOrderModal;
-document.getElementById('manualOrderForm').addEventListener('submit', handleManualOrderSubmit);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeStorefront);
+} else {
+  initializeStorefront();
+}
+</script>
