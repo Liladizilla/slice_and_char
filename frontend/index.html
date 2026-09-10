@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Slice & Char — Wood-fired Pizza</title>
+<link rel="icon" type="image/svg+xml" href="assets/brand/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -80,6 +81,9 @@
     display:flex;align-items:center;justify-content:space-between;
     padding:14px 24px;
   }
+  .brand-lockup{display:flex;align-items:center;gap:12px;}
+  .brand-mark{width:42px;height:42px;border-radius:14px;overflow:hidden;box-shadow:0 8px 16px rgba(43,23,16,.12);background:var(--crust);display:flex;align-items:center;justify-content:center;}
+  .brand-mark img{width:100%;height:100%;object-fit:cover;}
   .brand{font-family:'Fraunces',serif;font-weight:700;font-size:22px;letter-spacing:-.01em;}
   .brand span{color:var(--tomato);}
   .navlinks{display:flex;gap:28px;font-size:14.5px;font-weight:500;}
@@ -262,6 +266,19 @@
   .strip .item{display:flex;align-items:center;gap:8px;}
   .strip .num{color:var(--tomato);font-family:'Fraunces',serif;font-size:16px;}
 
+  .map-shell{display:grid;grid-template-columns:1.35fr .85fr;gap:26px;align-items:stretch;}
+  .map-frame{border-radius:24px;overflow:hidden;border:1px solid var(--line);box-shadow:0 18px 32px rgba(43,23,16,.08);background:#fff;}
+  .map-frame iframe{width:100%;height:360px;border:0;display:block;}
+  .location-panel{background:var(--cream-2);border:1px solid var(--line);border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:18px;}
+  .location-panel h3{font-size:28px;}
+  .location-panel p{margin:0;color:var(--crust-soft);font-size:15px;}
+  .location-actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .location-status{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--tomato-deep);}
+  .location-meta{display:grid;gap:12px;margin-top:8px;}
+  .meta-row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:12px;}
+  .meta-row strong{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--crust-soft);}
+  .meta-row span{font-weight:600;text-align:right;}
+
   /* ---------- Footer ---------- */
   footer{background:var(--crust);color:var(--cream-2);padding:56px 0 28px;}
   .foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:32px;}
@@ -273,7 +290,7 @@
   }
   @media (max-width:780px){
     .foot-grid{grid-template-columns:1fr;}
-    .hero .wrap, .builder-grid{grid-template-columns:1fr;}
+    .hero .wrap, .builder-grid, .map-shell{grid-template-columns:1fr;}
     .hero-visual{order:-1;}
     .menu-row{grid-template-columns:96px 1fr auto;gap:12px;}
     .menu-image{width:96px;height:80px;}
@@ -366,7 +383,10 @@
 
 <nav class="mainnav">
   <div class="wrap">
-    <div class="brand">Slice<span>&</span>Char</div>
+    <div class="brand-lockup">
+      <div class="brand-mark"><img src="assets/brand/favicon.svg" alt="Slice & Char logo"></div>
+      <div class="brand">Slice<span>&</span>Char</div>
+    </div>
     <div class="navlinks">
       <a href="#menu">Menu</a>
       <a href="#builder">Build your own</a>
@@ -471,7 +491,28 @@
     <div class="section-head">
       <span class="kicker">Find us</span>
       <h2>One kitchen. Fresh every time.</h2>
-      <p>Order for delivery or pickup. Enter your area below to check we deliver there before you check out.</p>
+      <p>Order for delivery or pickup. We deliver across Nairobi and can route you to the nearest drop-off point in real time.</p>
+    </div>
+    <div class="map-shell">
+      <div class="map-frame">
+        <iframe id="storeMap" src="https://www.google.com/maps?q=Slice%20%26%20Char%20Nairobi&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Slice & Char map"></iframe>
+      </div>
+      <div class="location-panel">
+        <div>
+          <div class="location-status" id="locationStatus">Live location</div>
+          <h3>Visit the kitchen</h3>
+        </div>
+        <p>Fresh pizza, same-day orders, and a quick pickup window when the kitchen is firing.</p>
+        <div class="location-actions">
+          <button class="btn btn-primary" type="button" onclick="locateMe()">Use my location</button>
+          <a class="btn btn-ghost" id="directionsLink" href="https://www.google.com/maps/search/?api=1&query=Slice+%26+Char+Nairobi" target="_blank" rel="noopener">Open in Maps</a>
+        </div>
+        <div class="location-meta">
+          <div class="meta-row"><strong>Live time</strong><span id="liveClock">--:--:--</span></div>
+          <div class="meta-row"><strong>Call</strong><span>+254 713 324 135</span></div>
+          <div class="meta-row"><strong>Email</strong><span>characharis01@gmail.com</span></div>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -480,7 +521,10 @@
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <div class="brand" style="color:var(--cream-2);margin-bottom:14px;">Slice<span style="color:var(--cheese);">&</span>Char</div>
+        <div class="brand-lockup" style="margin-bottom:14px;">
+          <div class="brand-mark" style="width:36px;height:36px;"><img src="assets/brand/favicon.svg" alt="Slice & Char logo"></div>
+          <div class="brand" style="color:var(--cream-2);">Slice<span style="color:var(--cheese);">&</span>Char</div>
+        </div>
         <p style="max-width:34ch;">Wood-fired pizza, one location, made fresh per order. No fridge yet, so drinks are coming later.</p>
       </div>
       <div>
@@ -490,8 +534,8 @@
       <div>
         <h4>Contact</h4>
         <a href="tel:+254713324135">+254 713 324 135</a><br>
-        <a href="#">Directions</a><br>
-        <a href="#">Instagram</a>
+        <a href="mailto:characharis01@gmail.com">characharis01@gmail.com</a><br>
+        <a href="https://www.google.com/maps/search/?api=1&query=Slice+%26+Char+Nairobi" target="_blank" rel="noopener">Directions</a>
       </div>
     </div>
     <div class="foot-bottom">
@@ -949,9 +993,11 @@ function initializeStorefront(){
     showToast('Receipt sent to the owner/admin dashboard');
   }
 
-  // Point this at your deployed backend (see /backend in the project).
-  // While testing locally with `npm run dev` in /backend, this is correct as-is.
-  const BACKEND_URL = 'https://slice-and-char.onrender.com';
+  const BACKEND_URL = (() => {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:3000';
+    return 'https://slice-and-char.onrender.com';
+  })();
 
   async function placeOrder(){
     if(cart.length===0) return;
@@ -1006,7 +1052,33 @@ function initializeStorefront(){
     }
   }
 
-  /* ---------------- status pill ---------------- */
+  async function loadLiveClock(){
+    const clock = document.getElementById('liveClock');
+    const statusText = document.getElementById('statusText');
+    const formatTime = (date) => new Intl.DateTimeFormat('en-KE', {
+      timeZone: 'Africa/Nairobi',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
+
+    try{
+      const res = await fetch('https://worldtimeapi.org/api/timezone/Africa/Nairobi');
+      if (!res.ok) throw new Error('API unavailable');
+      const data = await res.json();
+      const realNow = new Date(data.utc_datetime || Date.now());
+      const value = formatTime(realNow);
+      if(clock) clock.textContent = value;
+      if(statusText) statusText.textContent = `Open now — baking • ${value}`;
+      return;
+    }catch(err){
+      const fallback = formatTime(new Date());
+      if(clock) clock.textContent = fallback;
+      if(statusText) statusText.textContent = `Open now — baking • ${fallback}`;
+    }
+  }
+
   function updateStatus(){
     const now = new Date();
     const hr = now.getHours();
@@ -1014,9 +1086,37 @@ function initializeStorefront(){
     const pill = document.getElementById('statusPill');
     const text = document.getElementById('statusText');
     pill.classList.toggle('closed', !open);
-    text.textContent = open ? 'Open now — baking' : 'Closed — back at 11:00';
+    if(text && !text.dataset.custom){
+      text.textContent = open ? 'Open now — baking' : 'Closed — back at 11:00';
+    }
   }
   updateStatus();
+  loadLiveClock();
+  setInterval(loadLiveClock, 30000);
+
+  function locateMe(){
+    const mapFrame = document.getElementById('storeMap');
+    const status = document.getElementById('locationStatus');
+    const directionsLink = document.getElementById('directionsLink');
+    if(!navigator.geolocation){
+      showToast('Location access is not supported on this browser');
+      return;
+    }
+    if(status){ status.textContent = 'Locating you…'; }
+    navigator.geolocation.getCurrentPosition((position)=>{
+      const { latitude, longitude } = position.coords;
+      const userMap = `https://www.google.com/maps?q=${latitude},${longitude}&output=embed`;
+      if(mapFrame){ mapFrame.src = userMap; }
+      if(directionsLink){
+        directionsLink.href = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=Slice+%26+Char+Nairobi`;
+      }
+      if(status){ status.textContent = 'Your location selected'; }
+      showToast('Using your current location for directions');
+    }, ()=>{
+      if(status){ status.textContent = 'Live location'; }
+      showToast('Location denied — showing the store instead');
+    }, { enableHighAccuracy: true, timeout: 10000 });
+  }
 
   /* ---------------- scroll-linked pizza rotation ---------------- */
   gsap.registerPlugin(ScrollTrigger);
