@@ -8,6 +8,17 @@ function generateOrderNumber() {
   return 'SC' + Math.floor(1000 + Math.random() * 9000);
 }
 
+function normalizePhoneNumber(phone) {
+  if (!phone) return '';
+
+  const digits = String(phone).replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.startsWith('254')) return digits;
+  if (digits.startsWith('0')) return `254${digits.slice(1)}`;
+  return digits.length === 9 ? `254${digits}` : digits;
+}
+
 function formatOrderSms(orderNo, { items, total, phone, zoneFee, payMethod }) {
   const lines = items.map((i) => `- ${i.name} (${i.meta}) — KSh ${i.price}`).join('\n');
   const deliveryLine = zoneFee > 0 ? `Delivery fee: KSh ${zoneFee}\n` : 'Pickup — no delivery fee\n';
@@ -28,6 +39,9 @@ router.post('/', async (req, res) => {
   if (!items || !items.length) return res.status(400).json({ error: 'Cart is empty' });
   if (!phone) return res.status(400).json({ error: 'Phone number is required' });
 
+  const normalizedPhone = normalizePhoneNumber(phone);
+  if (!normalizedPhone) return res.status(400).json({ error: 'Phone number is invalid' });
+
   const orderNo = generateOrderNumber();
   const db = getDb();
 
@@ -36,7 +50,7 @@ router.post('/', async (req, res) => {
     items,
     total,
     zoneFee,
-    phone,
+    phone: normalizedPhone,
     payMethod,
     status: 'received', // received -> paid -> baking -> ready -> delivered
     createdAt: admin && db ? admin.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
@@ -52,17 +66,18 @@ router.post('/', async (req, res) => {
 
     // 2. Text the shop owner immediately. This happens even if Firestore
     //    isn't set up yet, so you never miss an order while wiring things up.
-    await notifyShop(formatOrderSms(orderNo, { items, total, phone, zoneFee, payMethod }));
+    await notifyShop(formatOrderSms(orderNo, { items, total, phone: normalizedPhone, zoneFee, payMethod }));
 
     // 3. Kick off payment collection.
     let payment;
     if (payMethod === 'mpesa') {
-      payment = await stkPush({ amount: total, phoneNumber: phone, apiRef: orderNo });
+      payment = await stkPush({ amount: total, phoneNumber: normalizedPhone, apiRef: orderNo });
     } else {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8000';
       payment = await createCheckout({
         amount: total,
         apiRef: orderNo,
-        redirectUrl: `${process.env.FRONTEND_URL}/order-confirmed?order=${orderNo}`,
+        redirectUrl: `${frontendUrl}/order-confirmed?order=${orderNo}`,
       });
     }
 

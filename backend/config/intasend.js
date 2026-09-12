@@ -11,7 +11,11 @@ function baseUrl() {
 }
 
 function authHeader() {
-  return { Authorization: `Bearer ${process.env.INTASEND_SECRET_KEY}` };
+  const secret = process.env.INTASEND_SECRET_KEY;
+  if (!secret) {
+    throw new Error('INTASEND_SECRET_KEY is missing. Set it in the project .env or backend .env file.');
+  }
+  return { Authorization: `Bearer ${secret}` };
 }
 
 /** Triggers an M-Pesa STK push prompt directly on the customer's phone. */

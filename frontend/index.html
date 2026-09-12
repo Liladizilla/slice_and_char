@@ -1143,6 +1143,8 @@ function initializeStorefront(){
 
   window.closeManualOrderModal = closeManualOrderModal;
   window.openManualOrderModal = openManualOrderModal;
+  window.openDrawer = openDrawer;
+  window.closeDrawer = closeDrawer;
   const manualOrderForm = document.getElementById('manualOrderForm');
   if(manualOrderForm){ manualOrderForm.addEventListener('submit', handleManualOrderSubmit); }
   window.placeOrder = placeOrder;

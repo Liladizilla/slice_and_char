@@ -29,6 +29,11 @@ async function notifyShop(message) {
     return { skipped: true };
   }
 
+  if (String(to).replace(/\D/g, '') === String(from).replace(/\D/g, '')) {
+    console.warn('[twilioClient] Skipped SMS — sender and recipient are the same number.');
+    return { skipped: true };
+  }
+
   try {
     const res = await c.messages.create({ body: message, from, to });
     console.log(`[twilioClient] SMS sent to ${to} (sid: ${res.sid})`);
